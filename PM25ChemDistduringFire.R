@@ -68,20 +68,41 @@ Oct_List = c(seq(as.Date("2015-10-01"), as.Date('2015-10-31'), by = '1 day'),
              seq(as.Date("2016-10-01"), as.Date('2016-10-31'), by = '1 day'),
              seq(as.Date("2017-10-01"), as.Date('2017-10-31'), by = '1 day'))
 FirePeriod = seq(as.Date("2017-10-09"), as.Date('2017-10-18'), by = '1 day')
-County = c('001', '013', '041', '055', '075', '081','085','095')
+County = c('001', '013', '041', '055', '075', '081','085','095', '067', '113')
 
-temp1 = PM25_Spec_Data %>% 
+temp0 = PM25_Spec_Data %>% 
+     filter(ParameterName != 'Average Ambient Pressure', ParameterName != 'Average Ambient Temperature', substr(ParameterName, 1, 6) != 'Sample') %>% 
      filter(substr(FIPS_POC, 1, 2) == '06') %>% 
      filter(substr(FIPS_POC, 3, 5) %in% County) %>% 
-     filter(Date %in% Oct_List) %>% 
-     mutate(FireDays = as.factor(ifelse(Date %in% FirePeriod, 1, 0))) %>%
+     filter(Date %in% Oct_List) 
+
+temp0.1 = group_by(temp0, FIPS_POC, ParameterName) %>%
+     count() %>% 
+     filter(n > 20) %>%
+     ungroup() %>%
+     distinct(FIPS_POC)
+
+temp1 = temp0 %>%   
+     filter(FIPS_POC %in% temp0.1$FIPS_POC) %>%   
+     mutate(FireDays = as.factor(ifelse(Date %in% FirePeriod, 'Fire', 'NonFire')))  %>%
+     arrange(FIPS_POC, ParameterName, Arithmetic.Mean)
+
+
+temp1 %>%
      group_by(ParameterName, FireDays) %>% 
-     summarize(Value = mean(Arithmetic.Mean)) %>% 
+     summarize(Value = mean(Arithmetic.Mean))  %>%
+     ungroup() %>%
      spread(FireDays, Value) %>% 
-     rename(NonFire = '0', Fire = '1')
-
-temp1 %>% 
+  #   rename(NonFire = '0', Fire = '1') %>%
+     filter(NonFire > 0 & Fire > 0) %>%
      print(n = Inf)
-#save(PM25_Spec_Data,file="PM25_Species_Data_20160212.RData") #PM25_Spec_Data 
 
-#rm(list=ls())
+pol.list = c('Aluminum PM2.5 LC', 'Ammonium Ion PM2.5 LC', 'Chlorine PM2.5 LC', 'EC PM2.5 LC TOR', 'Iron PM2.5 LC', 'OC PM2.5 LC TOR', 'Potassium PM2.5 LC', 'Silicon PM2.5 LC', 'Sodium Ion Pm2.5 LC', 'Titanium PM2.5 LC', 'Total Nitrate PM2.5 LC', 'Zinc PM2.5 LC')
+
+temp1 %>%
+     filter(Arithmetic.Mean > 0, ParameterName %in% pol.list) %>%
+     ggplot(aes(x = FireDays, y = Arithmetic.Mean)) + #, fill = FireDays)) +
+          facet_wrap(~ ParameterName, scales = "free") +
+          geom_boxplot() +# fatten = 2) +  
+          theme_bw() +
+          {}     
